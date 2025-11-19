@@ -63,9 +63,15 @@ export default function FindFriendsScreen({ navigation }) {
   };
 
   const onSwipedRight = async (cardIndex) => {
+    if (!candidatos[cardIndex]) return;
+    
     const persona = candidatos[cardIndex];
     try { await axiosClient.post('/app/like', { idCandidato: persona._id }); } 
     catch (e) { console.log(e); }
+  };
+
+  const onSwipedAllCards = () => {
+      setCandidatos([]); 
   };
 
   const siguienteFoto = (usuarioId, maxFotos) => {
@@ -77,6 +83,7 @@ export default function FindFriendsScreen({ navigation }) {
   };
 
   const abrirModalMensajeDirecto = (persona) => {
+      if (!persona) return;
       setCandidatoActualSuperLike(persona);
       setMensajeDirecto('');
       setModalVisible(true);
@@ -156,7 +163,7 @@ export default function FindFriendsScreen({ navigation }) {
                         );
                     }}
                     onSwipedRight={onSwipedRight}
-                    onSwipedAll={cargarCandidatos}
+                    onSwipedAll={onSwipedAllCards}
                     cardIndex={0}
                     backgroundColor={'transparent'}
                     stackSize={2}

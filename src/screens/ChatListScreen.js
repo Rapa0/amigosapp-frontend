@@ -36,32 +36,17 @@ export default function ChatListScreen({ navigation }) {
       setRefreshing(false);
   };
 
-  const responderSolicitud = async (idCandidato, accion) => {
-      try {
-          await axiosClient.post('/app/solicitudes', { idCandidato, accion });
-          cargarDatos(); 
-          if (accion === 'aceptar') Alert.alert('¡Nuevo Amigo!', 'Ahora puedes chatear.');
-      } catch (error) {
-          Alert.alert('Error al procesar solicitud');
-      }
-  };
-
   const confirmarEliminarChat = (idUsuario, nombre) => {
       Alert.alert(
           "Eliminar Chat",
-          `¿Quieres eliminar a ${nombre}? Volverá a aparecer en 'Descubrir' si coinciden de nuevo.`,
+          `¿Quieres eliminar a ${nombre}?`,
           [
               { text: "Cancelar", style: "cancel" },
-              { 
-                  text: "Eliminar", 
-                  style: "destructive", 
-                  onPress: async () => {
+              { text: "Eliminar", style: "destructive", onPress: async () => {
                       try {
                           await axiosClient.post('/app/eliminarmatch', { idUsuario });
                           cargarDatos();
-                      } catch (error) {
-                          Alert.alert("Error", "No se pudo eliminar");
-                      }
+                      } catch (error) { Alert.alert("Error", "No se pudo eliminar"); }
                   }
               }
           ]
@@ -69,18 +54,21 @@ export default function ChatListScreen({ navigation }) {
   };
 
   const renderSolicitud = ({ item }) => (
-      <View style={styles.solicitudCard}>
+      <TouchableOpacity 
+        style={styles.solicitudCard}
+        onPress={() => navigation.navigate('RequestDetail', { solicitud: item })} // Navegar al detalle
+      >
+          {/* Badge de Mensaje si existe */}
+          {item.mensajeInicial && (
+              <View style={styles.messageBadge}>
+                  <Icon name="message" type="material" size={12} color="white" />
+              </View>
+          )}
+
           <Image source={{ uri: item.imagen || 'https://via.placeholder.com/150' }} style={styles.solicitudImg} />
           <Text style={styles.solicitudName}>{item.nombre}, {item.edad}</Text>
-          <View style={styles.solicitudBtns}>
-              <TouchableOpacity onPress={() => responderSolicitud(item._id, 'rechazar')} style={styles.btnRechazar}>
-                  <Icon name="close" size={20} color="white" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => responderSolicitud(item._id, 'aceptar')} style={styles.btnAceptar}>
-                  <Icon name="check" size={20} color="white" />
-              </TouchableOpacity>
-          </View>
-      </View>
+          <Text style={styles.verPerfilBtn}>Ver Perfil</Text>
+      </TouchableOpacity>
   );
 
   return (
@@ -139,21 +127,25 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 15, marginTop: 15, marginBottom: 10, color: '#333' },
   
-  solicitudesContainer: { height: 180, backgroundColor: '#f9f9f9', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  solicitudesContainer: { height: 190, backgroundColor: '#f9f9f9', borderBottomWidth: 1, borderBottomColor: '#eee' },
   solicitudCard: { 
-      width: 110, height: 150, backgroundColor: 'white', borderRadius: 10, marginRight: 10, 
-      alignItems: 'center', padding: 5, elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: {width:0, height:1}
+      width: 120, height: 160, backgroundColor: 'white', borderRadius: 15, marginRight: 12, 
+      alignItems: 'center', padding: 10, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: {width:0, height:2},
+      position: 'relative'
   },
-  solicitudImg: { width: 70, height: 70, borderRadius: 35, marginBottom: 5 },
-  solicitudName: { fontWeight: 'bold', fontSize: 12, textAlign: 'center', marginBottom: 5 },
-  solicitudBtns: { flexDirection: 'row', width: '100%', justifyContent: 'space-around' },
-  btnAceptar: { backgroundColor: '#4FCC94', borderRadius: 15, width: 30, height: 30, justifyContent: 'center', alignItems: 'center' },
-  btnRechazar: { backgroundColor: '#FF5864', borderRadius: 15, width: 30, height: 30, justifyContent: 'center', alignItems: 'center' },
+  solicitudImg: { width: 80, height: 80, borderRadius: 40, marginBottom: 10, borderWidth: 2, borderColor: '#6200EE' },
+  solicitudName: { fontWeight: 'bold', fontSize: 14, textAlign: 'center', marginBottom: 5, color: '#333' },
+  verPerfilBtn: { fontSize: 12, color: '#6200EE', fontWeight: 'bold' },
+  
+  messageBadge: { 
+      position: 'absolute', top: 10, right: 10, backgroundColor: '#3AB4CC', 
+      borderRadius: 10, padding: 4, elevation: 2 
+  },
 
   chatName: { fontWeight: 'bold', fontSize: 16 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 },
   emptyText: { color: 'gray', marginTop: 10 },
-  listContainer: { paddingHorizontal: 10 },
+  listContainer: { paddingHorizontal: 15, paddingVertical: 5 },
   subtitle: { color: 'gray' },
   loader: { marginTop: 50 }
 });
