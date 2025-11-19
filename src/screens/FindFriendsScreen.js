@@ -1,7 +1,22 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
-import { View, StyleSheet, Text, Image, ActivityIndicator, Dimensions, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useRef, useContext, useCallback } from 'react';
+import { 
+    View, 
+    StyleSheet, 
+    Text, 
+    Image, 
+    ActivityIndicator, 
+    Dimensions, 
+    TouchableOpacity, 
+    Alert,
+    Modal, 
+    TextInput, 
+    TouchableWithoutFeedback,
+    KeyboardAvoidingView,
+    Platform
+} from 'react-native';
 import Swiper from 'react-native-deck-swiper';
 import { Icon, Button } from '@rneui/themed';
+import { useFocusEffect } from '@react-navigation/native';
 import axiosClient from '../api/client';
 import { AuthContext } from '../context/AuthContext';
 
@@ -16,7 +31,16 @@ export default function FindFriendsScreen({ navigation }) {
   
   const [fotoIndices, setFotoIndices] = useState({}); 
 
-  useEffect(() => { cargarCandidatos(); }, []);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [mensajeDirecto, setMensajeDirecto] = useState('');
+  const [candidatoActualSuperLike, setCandidatoActualSuperLike] = useState(null);
+  const [enviandoSuperLike, setEnviandoSuperLike] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      cargarCandidatos();
+    }, [])
+  );
 
   const cargarCandidatos = async () => {
     try {
@@ -24,6 +48,18 @@ export default function FindFriendsScreen({ navigation }) {
       setCandidatos(res.data);
     } catch (e) { console.log(e); }
     setLoading(false);
+  };
+
+  const reiniciarYRecargar = async () => {
+      setLoading(true);
+      try {
+          await axiosClient.post('/app/reiniciar');
+          await cargarCandidatos();
+      } catch (error) {
+          console.log(error);
+          Alert.alert("Error", "No se pudo recargar");
+          setLoading(false);
+      }
   };
 
   const onSwipedRight = async (cardIndex) => {
@@ -40,15 +76,40 @@ export default function FindFriendsScreen({ navigation }) {
     });
   };
 
-  const enviarMensajeDirecto = (persona) => {
-      Alert.alert("Mensaje Directo", `Escribe algo para ${persona.nombre}:`, [
-          { text: "Cancelar" },
-          { text: "Enviar", onPress: () => {
-              onSwipedRight(candidatos.indexOf(persona));
-              swiperRef.current.swipeRight();
-              Alert.alert("Enviado", "Si le gustas, verás el chat en tu lista.");
-          }}
-      ], 'plain-text');
+  const abrirModalMensajeDirecto = (persona) => {
+      setCandidatoActualSuperLike(persona);
+      setMensajeDirecto('');
+      setModalVisible(true);
+  };
+
+  const enviarSuperLikeConMensaje = async () => {
+      if (!candidatoActualSuperLike) return;
+      
+      if (mensajeDirecto.trim().length === 0) {
+          return Alert.alert("Escribe algo", "El mensaje no puede estar vacío.");
+      }
+
+      setEnviandoSuperLike(true);
+      try {
+          await axiosClient.post('/app/superlike', { 
+              idCandidato: candidatoActualSuperLike._id, 
+              mensaje: mensajeDirecto 
+          });
+          
+          setModalVisible(false); 
+          setTimeout(() => {
+              swiperRef.current.swipeRight(); 
+              Alert.alert("¡Enviado!", `Le has enviado un Super Like a ${candidatoActualSuperLike.nombre}.`);
+          }, 300);
+          
+      } catch (e) {
+          console.log(e);
+          Alert.alert("Error", "No se pudo enviar el Super Like. Verifica tu conexión.");
+      } finally {
+          setEnviandoSuperLike(false);
+          setMensajeDirecto('');
+          setCandidatoActualSuperLike(null);
+      }
   };
 
   if (loading) return <ActivityIndicator size="large" color="#6200EE" style={styles.center} />;
@@ -127,7 +188,7 @@ export default function FindFriendsScreen({ navigation }) {
                     <Icon name="close" type="material" color="#FF5864" size={35} />
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.roundButton, styles.btnSuper]} onPress={() => enviarMensajeDirecto(candidatos[0])}>
+                <TouchableOpacity style={[styles.roundButton, styles.btnSuper]} onPress={() => abrirModalMensajeDirecto(candidatos[0])}>
                     <Icon name="star" type="material" color="#3AB4CC" size={25} />
                 </TouchableOpacity>
 
@@ -139,10 +200,72 @@ export default function FindFriendsScreen({ navigation }) {
       ) : (
         <View style={styles.center}>
             <Text>No hay más personas cerca.</Text>
-            <Button title="Recargar" onPress={cargarCandidatos} type="clear" />
+            <Button title="Recargar Perfiles" onPress={reiniciarYRecargar} type="clear" />
             <Button title="Cerrar Sesión" onPress={logout} buttonStyle={styles.logoutBtn} />
         </View>
       )}
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalOverlay}
+        >
+            <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+                <View style={styles.modalBackground}>
+                    <TouchableWithoutFeedback>
+                        <View style={styles.modalContainer}>
+                            
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Super Like a {candidatoActualSuperLike?.nombre}</Text>
+                                <Text style={styles.modalSubtitle}>¡Destaca con un mensaje!</Text>
+                            </View>
+
+                            <TextInput
+                                style={styles.textInput}
+                                placeholder="Escribe algo interesante..."
+                                placeholderTextColor="#999"
+                                multiline
+                                numberOfLines={4}
+                                value={mensajeDirecto}
+                                onChangeText={setMensajeDirecto}
+                                maxLength={140}
+                                autoFocus={true}
+                            />
+                            <Text style={styles.charCount}>{mensajeDirecto.length}/140</Text>
+
+                            <View style={styles.modalButtonsRow}>
+                                <TouchableOpacity 
+                                    style={styles.btnCancel} 
+                                    onPress={() => setModalVisible(false)}
+                                >
+                                    <Text style={styles.btnCancelText}>Cancelar</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity 
+                                    style={[styles.btnSend, mensajeDirecto.trim() === '' && styles.btnSendDisabled]} 
+                                    onPress={enviarSuperLikeConMensaje}
+                                    disabled={mensajeDirecto.trim() === '' || enviandoSuperLike}
+                                >
+                                    {enviandoSuperLike ? (
+                                        <ActivityIndicator size="small" color="white" />
+                                    ) : (
+                                        <Text style={styles.btnSendText}>ENVIAR</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+
+                        </View>
+                    </TouchableWithoutFeedback>
+                </View>
+            </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
+
     </View>
   );
 }
@@ -176,7 +299,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignSelf: 'center' 
   },
-  
   image: { 
     width: '100%', 
     height: '78%', 
@@ -184,46 +306,75 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20, 
     resizeMode: 'cover' 
   },
-  
-  indicatorContainer: {
-      position: 'absolute', top: 10, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-between'
-  },
+  indicatorContainer: { position: 'absolute', top: 10, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-between' },
   barrita: { flex: 1, height: 4, backgroundColor: 'rgba(0,0,0,0.2)', marginHorizontal: 2, borderRadius: 2 },
   barritaActiva: { backgroundColor: 'white' },
 
-  infoContainer: {
-    flex: 1, 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingHorizontal: 20,
-    paddingBottom: 5
-  },
-  textWrapper: {
-      flex: 1
-  },
+  infoContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 5 },
+  textWrapper: { flex: 1 },
   name: { fontSize: 26, fontWeight: 'bold', color: '#333' },
   desc: { fontSize: 15, color: 'gray', marginTop: 4 },
 
   buttonsContainer: {
       position: 'absolute', 
       bottom: SCREEN_HEIGHT * 0.04, 
-      left: 0,
-      right: 0,
-      flexDirection: 'row',
-      justifyContent: 'space-evenly',
-      alignItems: 'center',
-      height: 100,
-      zIndex: 2 
+      left: 0, right: 0,
+      flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center',
+      height: 100, zIndex: 2 
   },
   roundButton: {
-      width: 65, height: 65, borderRadius: 35,
-      backgroundColor: 'white',
+      width: 65, height: 65, borderRadius: 35, backgroundColor: 'white',
       justifyContent: 'center', alignItems: 'center',
       shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, elevation: 5
   },
   btnNope: { borderWidth: 1, borderColor: 'white' }, 
   btnSuper: { width: 50, height: 50, borderRadius: 25, marginTop: -10, elevation: 3 },
   btnLike: { borderWidth: 1, borderColor: 'white' },
-  logoutBtn: { backgroundColor: 'red', marginTop: 20 }
+  logoutBtn: { backgroundColor: 'red', marginTop: 20 },
+
+  modalOverlay: { flex: 1 },
+  modalBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  modalContainer: {
+    width: '85%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    elevation: 10
+  },
+  modalHeader: { marginBottom: 15, alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#3AB4CC' },
+  modalSubtitle: { fontSize: 14, color: 'gray' },
+  
+  textInput: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#f0f2f5',
+    borderRadius: 10,
+    padding: 15,
+    textAlignVertical: 'top',
+    fontSize: 16,
+    color: '#333'
+  },
+  charCount: { alignSelf: 'flex-end', color: '#aaa', fontSize: 12, marginTop: 5, marginBottom: 20 },
+
+  modalButtonsRow: { flexDirection: 'row', width: '100%', justifyContent: 'space-between' },
+  
+  btnCancel: { padding: 15 },
+  btnCancelText: { color: '#aaa', fontWeight: 'bold' },
+
+  btnSend: { 
+    backgroundColor: '#3AB4CC', 
+    paddingVertical: 12, 
+    paddingHorizontal: 25, 
+    borderRadius: 25,
+    elevation: 2
+  },
+  btnSendDisabled: { backgroundColor: '#b0e0e6' }, 
+  btnSendText: { color: 'white', fontWeight: 'bold' }
 });

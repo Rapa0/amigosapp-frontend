@@ -1,20 +1,29 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import { Input, Icon, Text } from '@rneui/themed';
+import { 
+    View, FlatList, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, 
+    Image, ActivityIndicator, Modal, TextInput, StatusBar 
+} from 'react-native';
+import { Icon, Avatar, Text } from '@rneui/themed';
 import io from 'socket.io-client';
 import { launchImageLibrary } from 'react-native-image-picker';
 import axiosClient from '../api/client';
 import { AuthContext } from '../context/AuthContext';
 
-const SOCKET_URL = 'http://192.168.10.113:4000'; 
+const SOCKET_URL = 'https://amigosapp-backend.onrender.com'; 
 
-export default function ChatScreen({ route }) {
+export default function ChatScreen({ route, navigation }) {
   const { usuario } = route.params;
   const { authState } = useContext(AuthContext);
   const [mensajes, setMensajes] = useState([]);
   const [nuevoMensaje, setNuevoMensaje] = useState('');
-  const [subiendoFoto, setSubiendoFoto] = useState(false);
   const socketRef = useRef(null);
+  const flatListRef = useRef(null);
+
+  const [imagenSeleccionada, setImagenSeleccionada] = useState(null);
+  const [comentarioImagen, setComentarioImagen] = useState('');
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+  
+  const [imagenFullScreen, setImagenFullScreen] = useState(null);
 
   useEffect(() => {
     axiosClient.get(`/app/mensajes/${usuario._id}`).then(res => setMensajes(res.data));
@@ -31,39 +40,59 @@ export default function ChatScreen({ route }) {
     return () => socketRef.current.disconnect();
   }, [usuario._id, authState.user._id]);
 
+  useEffect(() => {
+    if (flatListRef.current) {
+      flatListRef.current.scrollToEnd({ animated: true });
+    }
+  }, [mensajes]);
+
   const enviarTexto = () => {
     if (nuevoMensaje.trim() === '') return;
-    enviarSocket(nuevoMensaje, 'texto');
+    emitirMensaje(nuevoMensaje, 'texto');
     setNuevoMensaje('');
   };
 
-  const seleccionarYEnviarFoto = () => {
-    const options = { mediaType: 'photo', quality: 0.5 };
-    launchImageLibrary(options, async (response) => {
+  const seleccionarFoto = () => {
+    const options = { mediaType: 'photo', quality: 0.7 };
+    launchImageLibrary(options, (response) => {
         if (response.didCancel || !response.assets) return;
-        
-        setSubiendoFoto(true);
-        const foto = response.assets[0];
-        const formData = new FormData();
-        formData.append('imagen', {
-            uri: foto.uri,
-            type: foto.type,
-            name: foto.fileName || 'chat_img.jpg',
-        });
-
-        try {
-            const res = await axiosClient.post('/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            enviarSocket(res.data.url, 'imagen');
-        } catch (error) {
-            console.log('Error foto chat:', error);
-        }
-        setSubiendoFoto(false);
+        setImagenSeleccionada(response.assets[0]);
+        setComentarioImagen('');
     });
   };
 
-  const enviarSocket = (contenido, tipo) => {
+  const confirmarEnvioFoto = async () => {
+      if (!imagenSeleccionada) return;
+      setSubiendoFoto(true);
+
+      const formData = new FormData();
+      formData.append('imagen', {
+          uri: imagenSeleccionada.uri,
+          type: imagenSeleccionada.type,
+          name: imagenSeleccionada.fileName || 'chat_img.jpg',
+      });
+
+      try {
+          const res = await axiosClient.post('/upload', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          
+          emitirMensaje(res.data.url, 'imagen');
+
+          if (comentarioImagen.trim().length > 0) {
+              emitirMensaje(comentarioImagen, 'texto');
+          }
+
+          setImagenSeleccionada(null);
+          setComentarioImagen('');
+
+      } catch (error) {
+          console.log(error);
+      }
+      setSubiendoFoto(false);
+  };
+
+  const emitirMensaje = (contenido, tipo) => {
       const payload = {
           remitente: authState.user._id,
           receptor: usuario._id,
@@ -79,11 +108,13 @@ export default function ChatScreen({ route }) {
       return (
         <View style={[styles.burbuja, esMio ? styles.burbujaMia : styles.burbujaOtro]}>
             {item.tipo === 'imagen' ? (
-                <Image 
-                    source={{ uri: item.mensaje }} 
-                    style={styles.imagenChat} 
-                    resizeMode="cover"
-                />
+                <TouchableOpacity onPress={() => setImagenFullScreen(item.mensaje)}>
+                    <Image 
+                        source={{ uri: item.mensaje }} 
+                        style={styles.imagenChat} 
+                        resizeMode="cover"
+                    />
+                </TouchableOpacity>
             ) : (
                 <Text style={esMio ? styles.textoMio : styles.textoOtro}>{item.mensaje}</Text>
             )}
@@ -92,51 +123,152 @@ export default function ChatScreen({ route }) {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
-        <View style={styles.header}>
-            <Text h4>{usuario.nombre}</Text>
-        </View>
-
-        <FlatList
-            data={mensajes}
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={renderItem}
-        />
-        
-        {subiendoFoto && <ActivityIndicator size="large" color="#6200EE" />}
-
-        <View style={styles.inputContainer}>
-            <TouchableOpacity onPress={seleccionarYEnviarFoto} style={styles.iconButton}>
-                <Icon name="camera-alt" type="material" color="gray" size={24} />
+    <View style={styles.outerContainer}>
+        <View style={styles.customHeader}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <Icon name="arrow-back" color="#333" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+                style={styles.headerProfile} 
+                onPress={() => navigation.navigate('ChatDetails', { usuario })}
+            >
+                <Avatar source={{ uri: usuario.imagen }} rounded size={35} />
+                <Text style={styles.headerName}>{usuario.nombre}</Text>
             </TouchableOpacity>
 
-            <Input 
-                placeholder="Mensaje..." 
-                value={nuevoMensaje}
-                onChangeText={setNuevoMensaje}
-                containerStyle={styles.inputTextContainer}
-                inputContainerStyle={styles.inputSinBorde} 
+            <View style={styles.headerSpacer} /> 
+        </View>
+
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === "ios" ? "padding" : "height"} 
+            style={styles.keyboardAvoidingContainer} 
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0} 
+        >
+            <FlatList
+                ref={flatListRef}
+                data={mensajes}
+                keyExtractor={(item, index) => index.toString()}
+                renderItem={renderItem}
+                contentContainerStyle={styles.flatListContent}
             />
             
-            <TouchableOpacity onPress={enviarTexto}>
-                <Icon name="send" type="material" color="#6200EE" reverse size={20} />
-            </TouchableOpacity>
-        </View>
-    </KeyboardAvoidingView>
+            <View style={styles.inputContainer}>
+                <TouchableOpacity onPress={seleccionarFoto} style={styles.iconButton}>
+                    <Icon name="camera-alt" type="material" color="gray" size={24} />
+                </TouchableOpacity>
+
+                <TextInput 
+                    placeholder="Mensaje..." 
+                    value={nuevoMensaje}
+                    onChangeText={setNuevoMensaje}
+                    style={styles.textInput}
+                    placeholderTextColor="#999"
+                />
+                
+                <TouchableOpacity onPress={enviarTexto} style={styles.iconButton}>
+                    <Icon name="send" type="material" color="#6200EE" />
+                </TouchableOpacity>
+            </View>
+        </KeyboardAvoidingView>
+
+        <Modal visible={!!imagenSeleccionada} animationType="slide" transparent={true}>
+            <View style={styles.modalContainer}>
+                <View style={styles.previewBox}>
+                    <Text style={styles.previewTitle}>Enviar Imagen</Text>
+                    {imagenSeleccionada && (
+                        <Image source={{ uri: imagenSeleccionada.uri }} style={styles.previewImage} />
+                    )}
+                    
+                    <TextInput 
+                        placeholder="Escribe un comentario (opcional)..."
+                        value={comentarioImagen}
+                        onChangeText={setComentarioImagen}
+                        style={styles.previewInput}
+                        placeholderTextColor="#999"
+                    />
+
+                    <View style={styles.previewButtons}>
+                        <TouchableOpacity onPress={() => setImagenSeleccionada(null)} style={styles.btnCancel}>
+                            <Text style={styles.textCancel}>Cancelar</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                            onPress={confirmarEnvioFoto} 
+                            style={styles.btnSend}
+                            disabled={subiendoFoto}
+                        >
+                            {subiendoFoto ? <ActivityIndicator color="white" /> : <Text style={styles.textSend}>Enviar</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+
+        <Modal visible={!!imagenFullScreen} transparent={true} animationType="fade">
+            <View style={styles.fullScreenContainer}>
+                <TouchableOpacity style={styles.closeButton} onPress={() => setImagenFullScreen(null)}>
+                    <Icon name="close" color="white" size={30} />
+                </TouchableOpacity>
+                {imagenFullScreen && (
+                    <Image source={{ uri: imagenFullScreen }} style={styles.fullScreenImage} resizeMode="contain" />
+                )}
+            </View>
+        </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f5f5f5' },
-    header: { padding: 15, backgroundColor: 'white', elevation: 2, alignItems: 'center' },
-    burbuja: { margin: 10, padding: 10, borderRadius: 10, maxWidth: '80%' },
-    burbujaMia: { alignSelf: 'flex-end', backgroundColor: '#6200EE' },
-    burbujaOtro: { alignSelf: 'flex-start', backgroundColor: '#E5E5EA' },
-    textoMio: { color: 'white' },
-    textoOtro: { color: 'black' },
+    outerContainer: { 
+        flex: 1, 
+        backgroundColor: '#f5f5f5',
+        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    },
+    
+    customHeader: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: 'white',
+    },
+    headerProfile: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center' },
+    headerName: { marginLeft: 10, fontSize: 18, fontWeight: 'bold', color: '#333' },
+    backButton: { padding: 10 },
+    headerSpacer: { width: 40 },
+
+    keyboardAvoidingContainer: {
+        flex: 1, 
+    },
+
+    burbuja: { margin: 10, padding: 10, borderRadius: 15, maxWidth: '75%' },
+    burbujaMia: { alignSelf: 'flex-end', backgroundColor: '#6200EE', borderBottomRightRadius: 2 },
+    burbujaOtro: { alignSelf: 'flex-start', backgroundColor: 'white', borderBottomLeftRadius: 2, borderWidth: 1, borderColor: '#eee' },
+    textoMio: { color: 'white', fontSize: 16 },
+    textoOtro: { color: '#333', fontSize: 16 },
     imagenChat: { width: 200, height: 200, borderRadius: 10 },
-    inputContainer: { flexDirection: 'row', padding: 5, backgroundColor: 'white', alignItems: 'center' },
-    inputTextContainer: { flex: 1 },
-    iconButton: { padding: 10 },
-    inputSinBorde: { borderBottomWidth: 0 } 
+
+    inputContainer: { 
+        flexDirection: 'row', padding: 10, backgroundColor: 'white', alignItems: 'center', 
+        borderTopWidth: 1, borderTopColor: '#eee' 
+    },
+    textInput: {
+        flex: 1, backgroundColor: '#f0f2f5', borderRadius: 20, paddingHorizontal: 15,
+        paddingVertical: 8, marginHorizontal: 10, color: '#333', fontSize: 16
+    },
+    iconButton: { padding: 5 },
+    flatListContent: { paddingVertical: 10 }, 
+
+    modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    previewBox: { width: '85%', backgroundColor: 'white', borderRadius: 15, padding: 20, alignItems: 'center', elevation: 10 },
+    previewTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
+    previewImage: { width: '100%', height: 250, borderRadius: 10, resizeMode: 'cover', marginBottom: 15 },
+    previewInput: { width: '100%', borderBottomWidth: 1, borderColor: '#ddd', marginBottom: 20, paddingVertical: 5, fontSize: 16 },
+    previewButtons: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
+    btnCancel: { padding: 10 },
+    btnSend: { backgroundColor: '#6200EE', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
+    textCancel: { color: 'red' },
+    textSend: { color: 'white', fontWeight: 'bold' },
+
+    fullScreenContainer: { flex: 1, backgroundColor: 'black', justifyContent: 'center' },
+    fullScreenImage: { width: '100%', height: '100%' },
+    closeButton: { position: 'absolute', top: 40, right: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 5 }
 });

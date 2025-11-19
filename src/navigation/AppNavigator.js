@@ -15,7 +15,8 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import VerifyTokenScreen from '../screens/VerifyTokenScreen';
 import NewPasswordScreen from '../screens/NewPasswordScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
-import CompleteProfileScreen from '../screens/CompleteProfileScreen'; 
+import CompleteProfileScreen from '../screens/CompleteProfileScreen';
+import ChatDetailsScreen from '../screens/ChatDetailsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -25,7 +26,8 @@ function ChatStackScreen() {
   return (
     <ChatStack.Navigator>
       <ChatStack.Screen name="Mensajes" component={ChatListScreen} />
-      <ChatStack.Screen name="Chat" component={ChatScreen} />
+      <ChatStack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
+      <ChatStack.Screen name="ChatDetails" component={ChatDetailsScreen} options={{ title: 'Información' }} />
     </ChatStack.Navigator>
   );
 }

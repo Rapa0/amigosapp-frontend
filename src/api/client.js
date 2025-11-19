@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://192.168.10.113:4000/api'; 
+const BASE_URL = 'https://amigosapp-backend.onrender.com/api'; 
 
 const axiosClient = axios.create({
     baseURL: BASE_URL
