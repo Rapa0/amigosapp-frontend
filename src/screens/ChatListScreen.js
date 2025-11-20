@@ -1,14 +1,16 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useContext } from 'react';
 import { View, FlatList, StyleSheet, TouchableOpacity, Alert, Image, RefreshControl, ActivityIndicator } from 'react-native';
 import { ListItem, Avatar, Text, Icon } from '@rneui/themed';
 import { useFocusEffect } from '@react-navigation/native';
 import axiosClient from '../api/client';
+import { AuthContext } from '../context/AuthContext';
 
 export default function ChatListScreen({ navigation }) {
   const [matches, setMatches] = useState([]);
   const [solicitudes, setSolicitudes] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingInit, setLoadingInit] = useState(true);
+  const { limpiarNotificaciones } = useContext(AuthContext);
 
   const cargarDatos = async () => {
       try {
@@ -27,7 +29,8 @@ export default function ChatListScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       cargarDatos();
-    }, [])
+      limpiarNotificaciones();
+    }, [limpiarNotificaciones])
   );
 
   const onRefresh = async () => {
@@ -150,25 +153,26 @@ const styles = StyleSheet.create({
       position: 'relative',
   },
   solicitudImg: { 
-      width: 60, 
-      height: 60, 
-      borderRadius: 30, 
+      width: 80, 
+      height: 80, 
+      borderRadius: 40, 
       borderWidth: 3, 
       borderColor: '#6200EE', 
+      marginBottom: 8 
   },
   solicitudName: { 
       fontWeight: 'bold', 
       fontSize: 15, 
       textAlign: 'center', 
       color: '#333',
-      marginTop: 8, 
+      marginTop: 5 
   },
   verPerfilBtn: { 
       fontSize: 13, 
       color: '#6200EE', 
       fontWeight: 'bold', 
       marginTop: 5, 
-      textDecorationLine: 'underline', 
+      textDecorationLine: 'underline' 
   },
   
   messageBadge: { 

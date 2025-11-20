@@ -43,6 +43,8 @@ const getTabBarIcon = (routeName, color, size) => {
 };
 
 function HomeTabs() {
+  const { notificaciones } = useContext(AuthContext);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -53,7 +55,16 @@ function HomeTabs() {
       })}
     >
       <Tab.Screen name="Descubrir" component={FindFriendsScreen} />
-      <Tab.Screen name="Chats" component={ChatStackScreen} />
+      
+      <Tab.Screen 
+        name="Chats" 
+        component={ChatStackScreen} 
+        options={{
+            tabBarBadge: notificaciones > 0 ? notificaciones : null,
+            tabBarBadgeStyle: { backgroundColor: '#FF5864', color: 'white', fontSize: 12 }
+        }}
+      />
+      
       <Tab.Screen name="Perfil" component={ProfileScreen} />
     </Tab.Navigator>
   );

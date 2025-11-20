@@ -1,18 +1,7 @@
 import React, { useState, useRef, useContext, useCallback } from 'react';
 import { 
-    View, 
-    StyleSheet, 
-    Text, 
-    Image, 
-    ActivityIndicator, 
-    Dimensions, 
-    TouchableOpacity, 
-    Alert,
-    Modal, 
-    TextInput, 
-    TouchableWithoutFeedback,
-    KeyboardAvoidingView,
-    Platform
+    View, StyleSheet, Text, Image, ActivityIndicator, Dimensions, 
+    TouchableOpacity, Alert, Modal, TextInput, TouchableWithoutFeedback, Pressable, KeyboardAvoidingView, Platform
 } from 'react-native';
 import Swiper from 'react-native-deck-swiper';
 import { Icon, Button } from '@rneui/themed';
@@ -22,6 +11,47 @@ import { AuthContext } from '../context/AuthContext';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const CARD_WIDTH = SCREEN_WIDTH * 0.9;
+
+const CardItem = ({ card, onPressImage, onOpenInfo }) => {
+    const [indiceFoto, setIndiceFoto] = useState(0);
+    const todasLasFotos = [card.imagen, ...(card.galeria || [])].filter(Boolean);
+    const fotoAMostrar = todasLasFotos[indiceFoto] || 'https://via.placeholder.com/300';
+
+    const cambiarFoto = (evento) => {
+        const toqueX = evento.nativeEvent.locationX;
+        if (toqueX > CARD_WIDTH / 2) {
+            setIndiceFoto((prev) => (prev + 1) % todasLasFotos.length);
+        } else {
+            setIndiceFoto((prev) => (prev - 1 + todasLasFotos.length) % todasLasFotos.length);
+        }
+    };
+
+    return (
+        <View style={styles.card}>
+            <Pressable style={styles.imageContainer} onPress={cambiarFoto}>
+                <Image source={{ uri: fotoAMostrar }} style={styles.image} />
+                
+                {todasLasFotos.length > 1 && (
+                    <View style={styles.indicatorContainer}>
+                        {todasLasFotos.map((_, i) => (
+                            <View key={i} style={[styles.barrita, i === indiceFoto ? styles.barritaActiva : null]} />
+                        ))}
+                    </View>
+                )}
+            </Pressable>
+
+            <View style={styles.infoContainer}>
+                <View style={styles.textWrapper}>
+                    <Text style={styles.name}>{card.nombre}, {card.edad}</Text>
+                    <Text numberOfLines={2} style={styles.desc}>{card.descripcion}</Text>
+                </View>
+                <Icon name="info" type="feather" color="gray" size={24} />
+            </View>
+        </View>
+    );
+};
+// ---------------------------------------------------------
 
 export default function FindFriendsScreen({ navigation }) {
   const [candidatos, setCandidatos] = useState([]);
@@ -29,8 +59,6 @@ export default function FindFriendsScreen({ navigation }) {
   const swiperRef = useRef(null);
   const { logout } = useContext(AuthContext);
   
-  const [fotoIndices, setFotoIndices] = useState({}); 
-
   const [modalVisible, setModalVisible] = useState(false);
   const [mensajeDirecto, setMensajeDirecto] = useState('');
   const [candidatoActualSuperLike, setCandidatoActualSuperLike] = useState(null);
@@ -56,7 +84,6 @@ export default function FindFriendsScreen({ navigation }) {
           await axiosClient.post('/app/reiniciar');
           await cargarCandidatos();
       } catch (error) {
-          console.log(error);
           Alert.alert("Error", "No se pudo recargar");
           setLoading(false);
       }
@@ -64,7 +91,6 @@ export default function FindFriendsScreen({ navigation }) {
 
   const onSwipedRight = async (cardIndex) => {
     if (!candidatos[cardIndex]) return;
-    
     const persona = candidatos[cardIndex];
     try { await axiosClient.post('/app/like', { idCandidato: persona._id }); } 
     catch (e) { console.log(e); }
@@ -72,14 +98,6 @@ export default function FindFriendsScreen({ navigation }) {
 
   const onSwipedAllCards = () => {
       setCandidatos([]); 
-  };
-
-  const siguienteFoto = (usuarioId, maxFotos) => {
-    setFotoIndices(prev => {
-        const actual = prev[usuarioId] || 0;
-        const siguiente = (actual + 1) % maxFotos;
-        return { ...prev, [usuarioId]: siguiente };
-    });
   };
 
   const abrirModalMensajeDirecto = (persona) => {
@@ -110,8 +128,7 @@ export default function FindFriendsScreen({ navigation }) {
           }, 300);
           
       } catch (e) {
-          console.log(e);
-          Alert.alert("Error", "No se pudo enviar el Super Like. Verifica tu conexión.");
+          Alert.alert("Error", "No se pudo enviar el Super Like.");
       } finally {
           setEnviandoSuperLike(false);
           setMensajeDirecto('');
@@ -131,36 +148,7 @@ export default function FindFriendsScreen({ navigation }) {
                     cards={candidatos}
                     renderCard={(card) => {
                         if (!card) return null;
-                        
-                        const todasLasFotos = [card.imagen, ...(card.galeria || [])].filter(Boolean);
-                        const indiceActual = fotoIndices[card._id] || 0;
-                        const fotoAMostrar = todasLasFotos[indiceActual] || 'https://via.placeholder.com/300';
-
-                        return (
-                            <TouchableOpacity 
-                                activeOpacity={1} 
-                                onPress={() => siguienteFoto(card._id, todasLasFotos.length)}
-                                style={styles.card}
-                            >
-                                <Image source={{ uri: fotoAMostrar }} style={styles.image} />
-                                
-                                {todasLasFotos.length > 1 && (
-                                    <View style={styles.indicatorContainer}>
-                                        {todasLasFotos.map((_, i) => (
-                                            <View key={i} style={[styles.barrita, i === indiceActual ? styles.barritaActiva : null]} />
-                                        ))}
-                                    </View>
-                                )}
-
-                                <View style={styles.infoContainer}>
-                                    <View style={styles.textWrapper}>
-                                        <Text style={styles.name}>{card.nombre}, {card.edad}</Text>
-                                        <Text numberOfLines={2} style={styles.desc}>{card.descripcion}</Text>
-                                    </View>
-                                    <Icon name="info" type="feather" color="gray" size={24} />
-                                </View>
-                            </TouchableOpacity>
-                        );
+                        return <CardItem card={card} />;
                     }}
                     onSwipedRight={onSwipedRight}
                     onSwipedAll={onSwipedAllCards}
@@ -295,7 +283,7 @@ const styles = StyleSheet.create({
 
   card: {
     height: SCREEN_HEIGHT * 0.65, 
-    width: SCREEN_WIDTH * 0.9,   
+    width: CARD_WIDTH,   
     borderRadius: 20,
     backgroundColor: "white",
     shadowColor: "#000",
@@ -304,17 +292,25 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 6,
     justifyContent: 'flex-start',
-    alignSelf: 'center' 
+    alignSelf: 'center',
+    overflow: 'hidden'
+  },
+  
+  imageContainer: {
+    width: '100%',
+    height: '78%',
+    position: 'relative'
   },
   image: { 
     width: '100%', 
-    height: '78%', 
-    borderTopLeftRadius: 20, 
-    borderTopRightRadius: 20, 
+    height: '100%', 
     resizeMode: 'cover' 
   },
-  indicatorContainer: { position: 'absolute', top: 10, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-between' },
-  barrita: { flex: 1, height: 4, backgroundColor: 'rgba(0,0,0,0.2)', marginHorizontal: 2, borderRadius: 2 },
+  
+  indicatorContainer: {
+      position: 'absolute', top: 10, left: 10, right: 10, flexDirection: 'row', justifyContent: 'space-between'
+  },
+  barrita: { flex: 1, height: 4, backgroundColor: 'rgba(0,0,0,0.4)', marginHorizontal: 2, borderRadius: 2 },
   barritaActiva: { backgroundColor: 'white' },
 
   infoContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 5 },
