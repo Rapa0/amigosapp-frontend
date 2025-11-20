@@ -1,24 +1,34 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Image, Dimensions, Alert } from 'react-native';
+import React, { useState, useContext } from 'react';
+import { View, StyleSheet, ScrollView, Dimensions, Alert, TouchableOpacity } from 'react-native';
 import { Text, Button, Icon } from '@rneui/themed';
 import axiosClient from '../api/client';
+import { AuthContext } from '../context/AuthContext';
+import PhotoGalleryViewer from '../components/PhotoGalleryViewer';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 export default function RequestDetailScreen({ route, navigation }) {
     const { solicitud } = route.params; 
     const [procesando, setProcesando] = useState(false);
+    const { cargarNotificaciones } = useContext(AuthContext);
 
     const responder = async (accion) => {
         setProcesando(true);
         try {
-            await axiosClient.post('/app/solicitudes', { idCandidato: solicitud._id, accion });
+            if (accion === 'rechazar') {
+                 await axiosClient.post('/app/solicitudes', { idCandidato: solicitud._id, accion: 'rechazar' });
+            } else {
+                 await axiosClient.post('/app/solicitudes', { idCandidato: solicitud._id, accion: 'aceptar' });
+            }
             
+            if (cargarNotificaciones) cargarNotificaciones();
+
             if (accion === 'aceptar') {
                 Alert.alert("¡Match!", "Ahora pueden chatear.");
             }
             navigation.goBack(); 
         } catch (error) {
+            console.log(error);
             Alert.alert("Error", "No se pudo procesar la solicitud");
         } finally {
             setProcesando(false);
@@ -26,38 +36,49 @@ export default function RequestDetailScreen({ route, navigation }) {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
-            <Image 
-                source={{ uri: solicitud.imagen || 'https://via.placeholder.com/300' }} 
-                style={styles.image} 
-            />
-
-            <View style={styles.infoContainer}>
-                {solicitud.mensajeInicial && (
-                    <View style={styles.messageBubble}>
-                        <View style={styles.quoteIcon}>
-                            <Icon name="format-quote" type="material" color="white" size={20} />
-                        </View>
-                        <Text style={styles.messageTitle}>Te dejó un mensaje:</Text>
-                        <Text style={styles.messageText}>"{solicitud.mensajeInicial}"</Text>
-                    </View>
-                )}
-
-                <Text h2 style={styles.name}>{solicitud.nombre}, {solicitud.edad}</Text>
+        <View style={styles.mainContainer}>
+            <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false} bounces={false}>
                 
-                <Text style={styles.sectionTitle}>Sobre mí</Text>
-                <Text style={styles.desc}>{solicitud.descripcion || "Sin descripción."}</Text>
+                <View style={styles.imageWrapper}>
+                    <PhotoGalleryViewer 
+                        user={solicitud} 
+                        height={SCREEN_HEIGHT * 0.55} 
+                        style={styles.galleryStyle}
+                    />
+                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+                        <Icon name="arrow-back" type="material" color="white" size={26} />
+                    </TouchableOpacity>
+                </View>
 
-                {solicitud.galeria && solicitud.galeria.length > 0 && (
-                    <View style={styles.galleryContainer}>
-                        {solicitud.galeria.map((img, index) => (
-                            <Image key={index} source={{ uri: img }} style={styles.galleryImage} />
-                        ))}
+                <View style={styles.infoContainer}>
+                    <View style={styles.headerRow}>
+                        <Text h2 style={styles.name}>{solicitud.nombre}, {solicitud.edad}</Text>
+                        {solicitud.genero && (
+                             <View style={styles.genderTag}>
+                                <Icon name="person" type="material" size={14} color="gray" style={styles.genderIcon}/>
+                                <Text style={styles.genderText}>{solicitud.genero}</Text>
+                             </View>
+                        )}
                     </View>
-                )}
 
-                <View style={styles.spacer} />
-            </View>
+                    {solicitud.mensajeInicial && (
+                        <View style={styles.messageBubble}>
+                            <View style={styles.quoteIcon}>
+                                <Icon name="format-quote" type="material" color="white" size={18} />
+                            </View>
+                            <Text style={styles.messageTitle}>Te dice:</Text>
+                            <Text style={styles.messageText}>"{solicitud.mensajeInicial}"</Text>
+                        </View>
+                    )}
+
+                    <Text style={styles.sectionTitle}>Sobre mí</Text>
+                    <Text style={styles.desc}>
+                        {solicitud.descripcion || "Sin descripción."}
+                    </Text>
+
+                    <View style={styles.spacer} />
+                </View>
+            </ScrollView>
 
             <View style={styles.buttonsContainer}>
                 <Button 
@@ -66,7 +87,7 @@ export default function RequestDetailScreen({ route, navigation }) {
                     buttonStyle={styles.btnReject}
                     containerStyle={styles.btnWrapper}
                     disabled={procesando}
-                    icon={<Icon name="close" color="#FF5864" style={styles.btnIcon} />}
+                    icon={<Icon name="close" color="white" style={styles.btnIcon} />}
                     titleStyle={styles.btnRejectTitle}
                     type="outline"
                 />
@@ -79,58 +100,70 @@ export default function RequestDetailScreen({ route, navigation }) {
                     icon={<Icon name="check" color="white" style={styles.btnIcon} />}
                 />
             </View>
-        </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flexGrow: 1, backgroundColor: 'white', paddingBottom: 100 },
-    image: { width: SCREEN_WIDTH, height: 450, resizeMode: 'cover' },
+    mainContainer: { flex: 1, backgroundColor: 'white' },
+    scrollContainer: { paddingBottom: 120 }, 
     
-    infoContainer: { 
-        padding: 20, 
-        marginTop: -30, 
-        backgroundColor: 'white', 
-        borderTopLeftRadius: 30, 
-        borderTopRightRadius: 30,
-        shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, elevation: 5
+    imageWrapper: { position: 'relative' },
+    galleryStyle: {
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
     },
+    backButton: {
+        position: 'absolute', top: 45, left: 20,
+        backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20, padding: 8,
+        zIndex: 20 
+    },
+
+    infoContainer: { padding: 25, marginTop: 5 },
     
+    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+    name: { color: '#333', fontSize: 28, fontWeight: 'bold', flex: 1 },
+    genderTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F5', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 15 },
+    genderIcon: { marginRight: 4 },
+    genderText: { color: 'gray', fontSize: 12, fontWeight: 'bold' },
+
     messageBubble: {
-        backgroundColor: '#EDF9FC',
-        borderColor: '#3AB4CC',
-        borderWidth: 1,
-        borderRadius: 15,
-        padding: 15,
-        marginBottom: 20,
-        position: 'relative',
-        marginTop: 10
+        backgroundColor: '#F0F0FF',
+        borderRadius: 15, padding: 20, marginBottom: 20,
+        borderLeftWidth: 4, borderLeftColor: '#6C63FF'
     },
     quoteIcon: {
-        position: 'absolute', top: -10, left: 20, backgroundColor: '#3AB4CC', borderRadius: 10, padding: 2
+        position: 'absolute', top: -10, left: 15, backgroundColor: '#6C63FF', borderRadius: 10, padding: 2
     },
-    messageTitle: { color: '#3AB4CC', fontWeight: 'bold', fontSize: 12, marginBottom: 5, marginTop: 5 },
-    messageText: { color: '#333', fontSize: 16, fontStyle: 'italic' },
+    messageTitle: { color: '#6C63FF', fontWeight: 'bold', fontSize: 12, marginBottom: 5 },
+    messageText: { color: '#444', fontSize: 16, fontStyle: 'italic', lineHeight: 22 },
 
-    name: { marginBottom: 5, color: '#333' },
-    sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 15, marginBottom: 5 },
-    desc: { fontSize: 16, color: '#555', lineHeight: 24 },
+    sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 8 },
+    desc: { fontSize: 16, color: '#666', lineHeight: 24 },
     
-    galleryContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
-    galleryImage: { width: 100, height: 100, borderRadius: 10, marginRight: 10, marginBottom: 10 },
-    
-    spacer: { height: 50 },
+    spacer: { height: 20 },
 
     buttonsContainer: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
         flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center',
-        paddingVertical: 20, backgroundColor: 'white',
-        borderTopWidth: 1, borderTopColor: '#eee'
+        paddingTop: 20,
+        paddingBottom: 40, 
+        backgroundColor: 'white',
+        borderTopWidth: 1, borderTopColor: '#F5F5F5',
+        elevation: 10,
+        shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 3
     },
-    btnWrapper: { width: '40%', borderRadius: 25 },
-    btnReject: { borderColor: '#FF5864', borderWidth: 2, paddingVertical: 12, borderRadius: 25 },
-    btnAccept: { backgroundColor: '#4FCC94', paddingVertical: 12, borderRadius: 25 },
+    btnWrapper: { width: '42%', borderRadius: 30 },
     
-    btnIcon: { marginRight: 5 },
-    btnRejectTitle: { color: '#FF5864' }
+    btnReject: { 
+        backgroundColor: '#FF5864', 
+        paddingVertical: 14, 
+        borderRadius: 30,
+        borderWidth: 0 
+    },
+    
+    btnAccept: { backgroundColor: '#6C63FF', paddingVertical: 14, borderRadius: 30 },
+    
+    btnIcon: { marginRight: 8 },
+    btnRejectTitle: { color: 'white', fontWeight: 'bold' }
 });

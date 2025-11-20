@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { 
     View, FlatList, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, 
-    Image, ActivityIndicator, Modal, TextInput, StatusBar 
+    Image, ActivityIndicator, Modal, TextInput, StatusBar, Text
 } from 'react-native';
-import { Icon, Avatar, Text } from '@rneui/themed';
+import { Icon, Avatar } from '@rneui/themed';
 import io from 'socket.io-client';
 import { launchImageLibrary } from 'react-native-image-picker';
 import axiosClient from '../api/client';
@@ -26,23 +26,41 @@ export default function ChatScreen({ route, navigation }) {
   const [imagenFullScreen, setImagenFullScreen] = useState(null);
 
   useEffect(() => {
-    axiosClient.get(`/app/mensajes/${usuario._id}`).then(res => setMensajes(res.data));
+    const cargarHistorial = async () => {
+        try {
+            const res = await axiosClient.get(`/app/mensajes/${usuario._id}`);
+            setMensajes(res.data);
+        } catch (error) {
+            console.log("Error cargando historial", error);
+        }
+    };
+    cargarHistorial();
 
-    socketRef.current = io(SOCKET_URL);
+    socketRef.current = io(SOCKET_URL, {
+        transports: ['websocket'],
+        jsonp: false
+    });
+
     socketRef.current.emit('entrar_chat', authState.user._id);
 
     socketRef.current.on('nuevo_mensaje', (mensaje) => {
-        if (mensaje.remitente === usuario._id || mensaje.remitente === authState.user._id) {
+        const esDeEsteChat = 
+            (mensaje.remitente === usuario._id && mensaje.receptor === authState.user._id) ||
+            (mensaje.remitente === authState.user._id && mensaje.receptor === usuario._id);
+
+        if (esDeEsteChat) {
             setMensajes(prev => [...prev, mensaje]);
         }
     });
 
-    return () => socketRef.current.disconnect();
+    return () => {
+        if (socketRef.current) socketRef.current.disconnect();
+    };
   }, [usuario._id, authState.user._id]);
 
   useEffect(() => {
-    if (flatListRef.current) {
-      flatListRef.current.scrollToEnd({ animated: true });
+    if (flatListRef.current && mensajes.length > 0) {
+      setTimeout(() => flatListRef.current.scrollToEnd({ animated: true }), 100);
     }
   }, [mensajes]);
 
@@ -87,7 +105,7 @@ export default function ChatScreen({ route, navigation }) {
           setComentarioImagen('');
 
       } catch (error) {
-          console.log(error);
+          console.log('Error foto chat:', error);
       }
       setSubiendoFoto(false);
   };
@@ -106,99 +124,123 @@ export default function ChatScreen({ route, navigation }) {
       const esMio = item.remitente === authState.user._id;
       
       return (
-        <View style={[styles.burbuja, esMio ? styles.burbujaMia : styles.burbujaOtro]}>
-            {item.tipo === 'imagen' ? (
-                <TouchableOpacity onPress={() => setImagenFullScreen(item.mensaje)}>
-                    <Image 
-                        source={{ uri: item.mensaje }} 
-                        style={styles.imagenChat} 
-                        resizeMode="cover"
-                    />
-                </TouchableOpacity>
-            ) : (
-                <Text style={esMio ? styles.textoMio : styles.textoOtro}>{item.mensaje}</Text>
+        <View style={[
+            styles.messageRow, 
+            esMio ? styles.rowMio : styles.rowOtro
+        ]}>
+            {!esMio && (
+                 <Avatar 
+                    source={{ uri: usuario.imagen }} 
+                    rounded 
+                    size={28} 
+                    containerStyle={styles.avatarMsg} 
+                 />
             )}
+
+            <View style={[
+                styles.burbuja, 
+                esMio ? styles.burbujaMia : styles.burbujaOtro,
+                item.tipo === 'imagen' && styles.burbujaImagen
+            ]}>
+                {item.tipo === 'imagen' ? (
+                    <TouchableOpacity onPress={() => setImagenFullScreen(item.mensaje)}>
+                        <Image 
+                            source={{ uri: item.mensaje }} 
+                            style={styles.imagenChat} 
+                            resizeMode="cover"
+                        />
+                    </TouchableOpacity>
+                ) : (
+                    <Text style={esMio ? styles.textoMio : styles.textoOtro}>{item.mensaje}</Text>
+                )}
+            </View>
         </View>
       );
   };
 
   return (
-    <View style={styles.outerContainer}>
-        <View style={styles.customHeader}>
+    <View style={styles.mainContainer}>
+        <View style={styles.headerContainer}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                <Icon name="arrow-back" color="#333" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-                style={styles.headerProfile} 
-                onPress={() => navigation.navigate('ChatDetails', { usuario })}
-            >
-                <Avatar source={{ uri: usuario.imagen }} rounded size={35} />
-                <Text style={styles.headerName}>{usuario.nombre}</Text>
+                <Icon name="chevron-left" type="feather" size={32} color="#333" />
             </TouchableOpacity>
 
-            <View style={styles.headerSpacer} /> 
+            <TouchableOpacity 
+                style={styles.userInfoArea} 
+                onPress={() => navigation.navigate('ChatDetails', { usuario })}
+            >
+                <Avatar source={{ uri: usuario.imagen }} rounded size={40} />
+                <View style={styles.headerTextContainer}>
+                    <Text style={styles.userName}>{usuario.nombre}</Text>
+                    <Text style={styles.userStatus}>Tocame para ver info</Text>
+                </View>
+            </TouchableOpacity>
         </View>
 
         <KeyboardAvoidingView 
-            behavior={Platform.OS === "ios" ? "padding" : "height"} 
-            style={styles.keyboardAvoidingContainer} 
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0} 
+            behavior={Platform.OS === "ios" ? "padding" : undefined} 
+            style={styles.keyboardAvoid}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
             <FlatList
                 ref={flatListRef}
                 data={mensajes}
                 keyExtractor={(item, index) => index.toString()}
                 renderItem={renderItem}
-                contentContainerStyle={styles.flatListContent}
+                contentContainerStyle={styles.messagesList}
+                showsVerticalScrollIndicator={false}
             />
             
-            <View style={styles.inputContainer}>
-                <TouchableOpacity onPress={seleccionarFoto} style={styles.iconButton}>
-                    <Icon name="camera-alt" type="material" color="gray" size={24} />
+            <View style={styles.inputWrapper}>
+                <TouchableOpacity onPress={seleccionarFoto} style={styles.attachButton}>
+                    <Icon name="image" type="feather" color="#6C63FF" size={24} />
                 </TouchableOpacity>
 
-                <TextInput 
-                    placeholder="Mensaje..." 
-                    value={nuevoMensaje}
-                    onChangeText={setNuevoMensaje}
-                    style={styles.textInput}
-                    placeholderTextColor="#999"
-                />
+                <View style={styles.textInputContainer}>
+                    <TextInput 
+                        placeholder="Escribe un mensaje..." 
+                        value={nuevoMensaje}
+                        onChangeText={setNuevoMensaje}
+                        style={styles.textInput}
+                        placeholderTextColor="#999"
+                        multiline
+                    />
+                </View>
                 
-                <TouchableOpacity onPress={enviarTexto} style={styles.iconButton}>
-                    <Icon name="send" type="material" color="#6200EE" />
+                <TouchableOpacity 
+                    onPress={enviarTexto} 
+                    style={[styles.sendButton, nuevoMensaje.trim() ? styles.sendActive : styles.sendInactive]}
+                    disabled={!nuevoMensaje.trim()}
+                >
+                    <Icon name="send" type="feather" color="white" size={20} />
                 </TouchableOpacity>
             </View>
         </KeyboardAvoidingView>
 
         <Modal visible={!!imagenSeleccionada} animationType="slide" transparent={true}>
             <View style={styles.modalContainer}>
-                <View style={styles.previewBox}>
-                    <Text style={styles.previewTitle}>Enviar Imagen</Text>
+                <View style={styles.previewCard}>
+                    <Text style={styles.previewHeader}>Enviar Foto</Text>
                     {imagenSeleccionada && (
                         <Image source={{ uri: imagenSeleccionada.uri }} style={styles.previewImage} />
                     )}
-                    
                     <TextInput 
-                        placeholder="Escribe un comentario (opcional)..."
+                        placeholder="Añadir comentario..."
                         value={comentarioImagen}
                         onChangeText={setComentarioImagen}
                         style={styles.previewInput}
                         placeholderTextColor="#999"
                     />
-
-                    <View style={styles.previewButtons}>
-                        <TouchableOpacity onPress={() => setImagenSeleccionada(null)} style={styles.btnCancel}>
-                            <Text style={styles.textCancel}>Cancelar</Text>
+                    <View style={styles.modalActions}>
+                        <TouchableOpacity onPress={() => setImagenSeleccionada(null)}>
+                            <Text style={styles.cancelText}>Cancelar</Text>
                         </TouchableOpacity>
-                        
                         <TouchableOpacity 
-                            onPress={confirmarEnvioFoto} 
-                            style={styles.btnSend}
+                            style={styles.confirmButton} 
+                            onPress={confirmarEnvioFoto}
                             disabled={subiendoFoto}
                         >
-                            {subiendoFoto ? <ActivityIndicator color="white" /> : <Text style={styles.textSend}>Enviar</Text>}
+                            {subiendoFoto ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Enviar</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -206,12 +248,12 @@ export default function ChatScreen({ route, navigation }) {
         </Modal>
 
         <Modal visible={!!imagenFullScreen} transparent={true} animationType="fade">
-            <View style={styles.fullScreenContainer}>
-                <TouchableOpacity style={styles.closeButton} onPress={() => setImagenFullScreen(null)}>
-                    <Icon name="close" color="white" size={30} />
+            <View style={styles.fsContainer}>
+                <TouchableOpacity style={styles.fsClose} onPress={() => setImagenFullScreen(null)}>
+                    <Icon name="x" type="feather" color="white" size={30} />
                 </TouchableOpacity>
                 {imagenFullScreen && (
-                    <Image source={{ uri: imagenFullScreen }} style={styles.fullScreenImage} resizeMode="contain" />
+                    <Image source={{ uri: imagenFullScreen }} style={styles.fsImage} resizeMode="contain" />
                 )}
             </View>
         </Modal>
@@ -220,55 +262,82 @@ export default function ChatScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-    outerContainer: { 
+    mainContainer: { 
         flex: 1, 
-        backgroundColor: '#f5f5f5',
-        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+        backgroundColor: '#F5F6FA',
+        paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 
+    },
+    keyboardAvoid: {
+        flex: 1
     },
     
-    customHeader: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee', backgroundColor: 'white',
+    headerContainer: {
+        flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10,
+        backgroundColor: 'white', elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: {width:0, height:2}
     },
-    headerProfile: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center' },
-    headerName: { marginLeft: 10, fontSize: 18, fontWeight: 'bold', color: '#333' },
-    backButton: { padding: 10 },
-    headerSpacer: { width: 40 },
+    backButton: { padding: 5 },
+    userInfoArea: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 10 },
+    headerTextContainer: { marginLeft: 10 },
+    userName: { fontSize: 17, fontWeight: 'bold', color: '#333' },
+    userStatus: { fontSize: 12, color: '#6C63FF' },
 
-    keyboardAvoidingContainer: {
-        flex: 1, 
+    messagesList: { paddingHorizontal: 15, paddingBottom: 20, paddingTop: 20, flexGrow: 1 },
+    messageRow: { flexDirection: 'row', marginBottom: 12, maxWidth: '80%' },
+    rowMio: { alignSelf: 'flex-end', justifyContent: 'flex-end' },
+    rowOtro: { alignSelf: 'flex-start', justifyContent: 'flex-start' },
+    
+    avatarMsg: { marginRight: 8, alignSelf: 'flex-end' },
+
+    burbuja: { padding: 12, borderRadius: 20 },
+    burbujaMia: { 
+        backgroundColor: '#6C63FF', 
+        borderBottomRightRadius: 4 
     },
-
-    burbuja: { margin: 10, padding: 10, borderRadius: 15, maxWidth: '75%' },
-    burbujaMia: { alignSelf: 'flex-end', backgroundColor: '#6200EE', borderBottomRightRadius: 2 },
-    burbujaOtro: { alignSelf: 'flex-start', backgroundColor: 'white', borderBottomLeftRadius: 2, borderWidth: 1, borderColor: '#eee' },
+    burbujaOtro: { 
+        backgroundColor: 'white', 
+        borderBottomLeftRadius: 4,
+        shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1
+    },
+    burbujaImagen: { padding: 5, borderRadius: 15 },
+    
     textoMio: { color: 'white', fontSize: 16 },
     textoOtro: { color: '#333', fontSize: 16 },
     imagenChat: { width: 200, height: 200, borderRadius: 10 },
 
-    inputContainer: { 
-        flexDirection: 'row', padding: 10, backgroundColor: 'white', alignItems: 'center', 
-        borderTopWidth: 1, borderTopColor: '#eee' 
+    inputWrapper: {
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        paddingTop: 10,
+        paddingHorizontal: 10,
+        paddingBottom: 40, // 20 a 40
+        backgroundColor: 'white', 
+        borderTopWidth: 1, 
+        borderTopColor: '#eee'
     },
-    textInput: {
-        flex: 1, backgroundColor: '#f0f2f5', borderRadius: 20, paddingHorizontal: 15,
-        paddingVertical: 8, marginHorizontal: 10, color: '#333', fontSize: 16
+    attachButton: { padding: 10 },
+    textInputContainer: {
+        flex: 1, backgroundColor: '#F0F2F5', borderRadius: 25, 
+        paddingHorizontal: 15, marginHorizontal: 5, minHeight: 45, justifyContent: 'center'
     },
-    iconButton: { padding: 5 },
-    flatListContent: { paddingVertical: 10 }, 
+    textInput: { fontSize: 16, color: '#333', maxHeight: 100 },
+    sendButton: { 
+        width: 45, height: 45, borderRadius: 22.5, 
+        justifyContent: 'center', alignItems: 'center', marginLeft: 5 
+    },
+    sendActive: { backgroundColor: '#6C63FF', elevation: 2 },
+    sendInactive: { backgroundColor: '#E0E0E0' },
 
     modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-    previewBox: { width: '85%', backgroundColor: 'white', borderRadius: 15, padding: 20, alignItems: 'center', elevation: 10 },
-    previewTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-    previewImage: { width: '100%', height: 250, borderRadius: 10, resizeMode: 'cover', marginBottom: 15 },
-    previewInput: { width: '100%', borderBottomWidth: 1, borderColor: '#ddd', marginBottom: 20, paddingVertical: 5, fontSize: 16 },
-    previewButtons: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-    btnCancel: { padding: 10 },
-    btnSend: { backgroundColor: '#6200EE', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-    textCancel: { color: 'red' },
-    textSend: { color: 'white', fontWeight: 'bold' },
+    previewCard: { width: '85%', backgroundColor: 'white', borderRadius: 20, padding: 20, alignItems: 'center', elevation: 10 },
+    previewHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
+    previewImage: { width: '100%', height: 250, borderRadius: 15, marginBottom: 15 },
+    previewInput: { width: '100%', backgroundColor: '#F5F6FA', borderRadius: 10, padding: 10, marginBottom: 20 },
+    modalActions: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' },
+    cancelText: { color: '#FF5864', fontWeight: 'bold', fontSize: 16, padding: 10 },
+    confirmButton: { backgroundColor: '#6C63FF', paddingVertical: 10, paddingHorizontal: 25, borderRadius: 20 },
+    confirmText: { color: 'white', fontWeight: 'bold' },
 
-    fullScreenContainer: { flex: 1, backgroundColor: 'black', justifyContent: 'center' },
-    fullScreenImage: { width: '100%', height: '100%' },
-    closeButton: { position: 'absolute', top: 40, right: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, padding: 5 }
+    fsContainer: { flex: 1, backgroundColor: 'black', justifyContent: 'center' },
+    fsImage: { width: '100%', height: '100%' },
+    fsClose: { position: 'absolute', top: 40, right: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.5)', padding: 10, borderRadius: 20 }
 });

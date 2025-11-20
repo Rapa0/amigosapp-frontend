@@ -1,9 +1,10 @@
 import React, { useContext } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Icon } from '@rneui/themed';
 import { AuthContext } from '../context/AuthContext';
+import { View, StyleSheet, Platform } from 'react-native';
 
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -23,23 +24,48 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const ChatStack = createNativeStackNavigator();
 
+const MyTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: 'white',
+  },
+};
+
 function ChatStackScreen() {
   return (
     <ChatStack.Navigator>
       <ChatStack.Screen name="Mensajes" component={ChatListScreen} />
-      <ChatStack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
-      <ChatStack.Screen name="ChatDetails" component={ChatDetailsScreen} options={{ title: 'Información' }} />
-      <ChatStack.Screen name="RequestDetail" component={RequestDetailScreen} options={{ title: 'Solicitud' }} />
     </ChatStack.Navigator>
   );
 }
 
-const getTabBarIcon = (routeName, color, size) => {
+const getTabBarIcon = (routeName, focused, color, size) => {
   let iconName;
-  if (routeName === 'Descubrir') iconName = 'search';
-  else if (routeName === 'Chats') iconName = 'chat';
-  else if (routeName === 'Perfil') iconName = 'person';
-  return <Icon name={iconName} type="material" size={size} color={color} />;
+  let iconType = 'material';
+
+  if (routeName === 'Descubrir') {
+      iconName = 'style'; 
+      iconType = 'material';
+  } else if (routeName === 'Chats') {
+      iconName = 'chat-bubble';
+  } else if (routeName === 'Perfil') {
+      iconName = 'person';
+  }
+
+  return (
+    <View style={[
+        styles.iconContainer, 
+        focused && styles.iconContainerFocused
+    ]}>
+        <Icon 
+            name={iconName} 
+            type={iconType} 
+            size={24}
+            color={focused ? 'white' : color} 
+        />
+    </View>
+  );
 };
 
 function HomeTabs() {
@@ -49,9 +75,12 @@ function HomeTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarIcon: ({ color, size }) => getTabBarIcon(route.name, color, size),
-        tabBarActiveTintColor: '#6200EE',
-        tabBarInactiveTintColor: 'gray',
+        tabBarShowLabel: true,
+        tabBarStyle: styles.tabBar,
+        tabBarLabelStyle: styles.tabLabel,
+        tabBarIcon: ({ focused, color, size }) => getTabBarIcon(route.name, focused, color, size),
+        tabBarActiveTintColor: '#6C63FF',
+        tabBarInactiveTintColor: '#BDBDBD',
       })}
     >
       <Tab.Screen name="Descubrir" component={FindFriendsScreen} />
@@ -61,7 +90,7 @@ function HomeTabs() {
         component={ChatStackScreen} 
         options={{
             tabBarBadge: notificaciones > 0 ? notificaciones : null,
-            tabBarBadgeStyle: { backgroundColor: '#FF5864', color: 'white', fontSize: 12 }
+            tabBarBadgeStyle: { backgroundColor: '#FF6584', color: 'white', fontSize: 10, fontWeight: 'bold' }
         }}
       />
       
@@ -79,7 +108,7 @@ export default function AppNavigator() {
   const perfilIncompleto = user && (!user.edad || !user.descripcion || !user.genero);
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={MyTheme}> 
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {authState.token ? (
           perfilIncompleto ? (
@@ -87,10 +116,29 @@ export default function AppNavigator() {
           ) : (
             <>
               <Stack.Screen name="Home" component={HomeTabs} />
+
+              <Stack.Screen 
+                name="Chat" 
+                component={ChatScreen} 
+                options={{ headerShown: false }} 
+              />
+              
               <Stack.Screen 
                 name="EditProfile" 
                 component={EditProfileScreen} 
-                options={{ headerShown: true, title: 'Editar Perfil' }} 
+                options={{ headerShown: true, title: 'Editar Perfil', headerShadowVisible: false }} 
+              />
+              
+              <Stack.Screen 
+                name="RequestDetail" 
+                component={RequestDetailScreen} 
+                options={{ headerShown: false }} 
+              />
+
+              <Stack.Screen 
+                name="ChatDetails" 
+                component={ChatDetailsScreen} 
+                options={{ headerShown: true, title: 'Información', headerBackTitleVisible: false }} 
               />
             </>
           )
@@ -107,3 +155,46 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+    tabBar: {
+        position: 'absolute',
+        bottom: 20,
+        left: 20,
+        right: 20,
+        backgroundColor: 'white',
+        borderRadius: 25,
+        height: 80, 
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        borderTopWidth: 0,
+        paddingBottom: Platform.OS === 'ios' ? 20 : 15,
+        paddingTop: 0
+    },
+    tabLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        marginBottom: 5
+    },
+    iconContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        marginTop: 10 
+    },
+    iconContainerFocused: {
+        backgroundColor: '#6C63FF',
+        elevation: 5,
+        shadowColor: '#6C63FF',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        marginTop: 0,
+        transform: [{ translateY: -5 }]
+    }
+});

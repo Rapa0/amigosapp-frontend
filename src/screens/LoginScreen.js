@@ -6,6 +6,8 @@ import { AuthContext } from '../context/AuthContext';
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  
   const { login } = useContext(AuthContext);
 
   return (
@@ -24,8 +26,13 @@ export default function LoginScreen({ navigation }) {
         placeholder="Contraseña" 
         value={password} 
         onChangeText={setPassword} 
-        secureTextEntry 
+        secureTextEntry={!showPassword} 
         leftIcon={{ type: 'material', name: 'lock' }}
+        rightIcon={{ 
+            type: 'material', 
+            name: showPassword ? 'visibility' : 'visibility-off',
+            onPress: () => setShowPassword(!showPassword) 
+        }}
       />
       
       <Button 
