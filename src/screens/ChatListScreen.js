@@ -39,14 +39,19 @@ export default function ChatListScreen({ navigation }) {
   const confirmarEliminarChat = (idUsuario, nombre) => {
       Alert.alert(
           "Eliminar Chat",
-          `¿Quieres eliminar a ${nombre}?`,
+          `¿Quieres eliminar a ${nombre}? Volverá a aparecer en 'Descubrir' si coinciden de nuevo.`,
           [
               { text: "Cancelar", style: "cancel" },
-              { text: "Eliminar", style: "destructive", onPress: async () => {
+              { 
+                  text: "Eliminar", 
+                  style: "destructive", 
+                  onPress: async () => {
                       try {
                           await axiosClient.post('/app/eliminarmatch', { idUsuario });
                           cargarDatos();
-                      } catch (error) { Alert.alert("Error", "No se pudo eliminar"); }
+                      } catch (error) {
+                          Alert.alert("Error", "No se pudo eliminar");
+                      }
                   }
               }
           ]
@@ -56,9 +61,8 @@ export default function ChatListScreen({ navigation }) {
   const renderSolicitud = ({ item }) => (
       <TouchableOpacity 
         style={styles.solicitudCard}
-        onPress={() => navigation.navigate('RequestDetail', { solicitud: item })} // Navegar al detalle
+        onPress={() => navigation.navigate('RequestDetail', { solicitud: item })}
       >
-          {/* Badge de Mensaje si existe */}
           {item.mensajeInicial && (
               <View style={styles.messageBadge}>
                   <Icon name="message" type="material" size={12} color="white" />
@@ -66,7 +70,7 @@ export default function ChatListScreen({ navigation }) {
           )}
 
           <Image source={{ uri: item.imagen || 'https://via.placeholder.com/150' }} style={styles.solicitudImg} />
-          <Text style={styles.solicitudName}>{item.nombre}, {item.edad}</Text>
+          <Text style={styles.solicitudName} numberOfLines={1}>{item.nombre}, {item.edad}</Text>
           <Text style={styles.verPerfilBtn}>Ver Perfil</Text>
       </TouchableOpacity>
   );
@@ -128,24 +132,53 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 15, marginTop: 15, marginBottom: 10, color: '#333' },
   
   solicitudesContainer: { height: 190, backgroundColor: '#f9f9f9', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  listContainer: { paddingHorizontal: 15, paddingVertical: 5 },
+
   solicitudCard: { 
-      width: 120, height: 160, backgroundColor: 'white', borderRadius: 15, marginRight: 12, 
-      alignItems: 'center', padding: 10, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: {width:0, height:2},
-      position: 'relative'
+      width: 140, 
+      height: 160, 
+      backgroundColor: 'white', 
+      borderRadius: 15, 
+      marginRight: 15, 
+      alignItems: 'center', 
+      paddingVertical: 15, 
+      paddingHorizontal: 10,
+      elevation: 3, 
+      shadowColor: '#000', 
+      shadowOpacity: 0.1, 
+      shadowOffset: {width:0, height:2},
+      position: 'relative',
   },
-  solicitudImg: { width: 80, height: 80, borderRadius: 40, marginBottom: 10, borderWidth: 2, borderColor: '#6200EE' },
-  solicitudName: { fontWeight: 'bold', fontSize: 14, textAlign: 'center', marginBottom: 5, color: '#333' },
-  verPerfilBtn: { fontSize: 12, color: '#6200EE', fontWeight: 'bold' },
+  solicitudImg: { 
+      width: 60, 
+      height: 60, 
+      borderRadius: 30, 
+      borderWidth: 3, 
+      borderColor: '#6200EE', 
+  },
+  solicitudName: { 
+      fontWeight: 'bold', 
+      fontSize: 15, 
+      textAlign: 'center', 
+      color: '#333',
+      marginTop: 8, 
+  },
+  verPerfilBtn: { 
+      fontSize: 13, 
+      color: '#6200EE', 
+      fontWeight: 'bold', 
+      marginTop: 5, 
+      textDecorationLine: 'underline', 
+  },
   
   messageBadge: { 
-      position: 'absolute', top: 10, right: 10, backgroundColor: '#3AB4CC', 
+      position: 'absolute', top: 5, right: 5, backgroundColor: '#3AB4CC', 
       borderRadius: 10, padding: 4, elevation: 2 
   },
 
   chatName: { fontWeight: 'bold', fontSize: 16 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 },
   emptyText: { color: 'gray', marginTop: 10 },
-  listContainer: { paddingHorizontal: 15, paddingVertical: 5 },
   subtitle: { color: 'gray' },
   loader: { marginTop: 50 }
 });
