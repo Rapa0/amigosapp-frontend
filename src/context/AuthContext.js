@@ -31,13 +31,8 @@ export const AuthProvider = ({ children }) => {
             socket.current = io(SOCKET_URL);
             socket.current.emit('entrar_chat', authState.user._id);
 
-            socket.current.on('nueva_notificacion', () => {
-                setNotificaciones(prev => prev + 1);
-            });
-
-            socket.current.on('nuevo_mensaje', () => {
-                setNotificaciones(prev => prev + 1);
-            });
+            socket.current.on('nueva_notificacion', () => setNotificaciones(prev => prev + 1));
+            socket.current.on('nuevo_mensaje', () => setNotificaciones(prev => prev + 1));
         } else {
             if(socket.current) socket.current.disconnect();
         }
@@ -47,14 +42,10 @@ export const AuthProvider = ({ children }) => {
         try {
             const res = await axiosClient.get('/app/solicitudes');
             setNotificaciones(res.data.length);
-        } catch (error) {
-            console.log(error);
-        }
+        } catch (error) { console.log(error); }
     };
 
-    const limpiarNotificaciones = () => {
-        setNotificaciones(0);
-    };
+    const limpiarNotificaciones = () => setNotificaciones(0);
 
     const despertarServidor = async () => {
         try {
@@ -70,11 +61,7 @@ export const AuthProvider = ({ children }) => {
             
             if (token && user) {
                 axiosClient.defaults.headers.common.Authorization = `Bearer ${token}`;
-                setAuthState({
-                    token,
-                    user: JSON.parse(user),
-                    isLoading: false
-                });
+                setAuthState({ token, user: JSON.parse(user), isLoading: false });
             } else {
                 setAuthState(prev => ({ ...prev, isLoading: false }));
             }
@@ -98,7 +85,6 @@ export const AuthProvider = ({ children }) => {
     const register = async (nombre, email, password, imagen) => {
         try {
             await axiosClient.post('/auth/registrar', { nombre, email, password, imagen });
-            Alert.alert('Éxito', 'Cuenta creada. Ahora inicia sesión.');
             return true;
         } catch (e) {
             Alert.alert('Error', e.response?.data?.msg || 'Error al registrar');
@@ -115,15 +101,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ 
-            authState, 
-            setAuthState, 
-            login, 
-            register, 
-            logout, 
-            notificaciones, 
-            limpiarNotificaciones 
-        }}>
+        <AuthContext.Provider value={{ authState, setAuthState, login, register, logout, notificaciones, limpiarNotificaciones, cargarNotificaciones: contarSolicitudes }}>
             {children}
         </AuthContext.Provider>
     );

@@ -128,7 +128,7 @@ export default function FindFriendsScreen({ navigation }) {
                             <View style={styles.card}>
                                 <PhotoGalleryViewer 
                                     user={card} 
-                                    height={'78%'}
+                                    height={'75%'} 
                                     imageStyle={styles.cardTopRadius}
                                     style={styles.cardTopRadius}
                                 />
@@ -261,12 +261,17 @@ export default function FindFriendsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8F9FC" },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 30 },
-  
-  deckContainer: { height: SCREEN_HEIGHT * 0.70, width: SCREEN_WIDTH, marginTop: SCREEN_HEIGHT * 0.12, zIndex: 1 },
+
+  deckContainer: { 
+      height: SCREEN_HEIGHT * 0.65, 
+      width: SCREEN_WIDTH, 
+      marginTop: SCREEN_HEIGHT * 0.08, 
+      zIndex: 1 
+  },
   swiperContainerInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   
   card: {
-    height: SCREEN_HEIGHT * 0.65, 
+    height: SCREEN_HEIGHT * 0.62, 
     width: SCREEN_WIDTH * 0.9,   
     borderRadius: 20,
     backgroundColor: "white",
@@ -285,7 +290,18 @@ const styles = StyleSheet.create({
   desc: { fontSize: 15, color: 'gray', marginTop: 4 },
   iconInfo: { backgroundColor: '#F0F0FF', padding: 8, borderRadius: 20 },
 
-  buttonsContainer: { position: 'absolute', bottom: SCREEN_HEIGHT * 0.04, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', height: 100, zIndex: 2 },
+
+  buttonsContainer: { 
+      position: 'absolute', 
+      bottom: 110, 
+      left: 0, 
+      right: 0, 
+      flexDirection: 'row', 
+      justifyContent: 'space-evenly', 
+      alignItems: 'center', 
+      height: 100, 
+      zIndex: 2 
+  },
   roundButton: {
       width: 65, height: 65, borderRadius: 35, backgroundColor: 'white',
       justifyContent: 'center', alignItems: 'center',
